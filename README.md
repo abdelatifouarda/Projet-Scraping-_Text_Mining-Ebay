@@ -1,146 +1,77 @@
-# Projet-Scraping-_Text_Mining-Ebay
-# Laptop Listings Scraping & Text Similarity Analysis
+# eBay Laptop Listings: Web Scraping & TF-IDF Text Similarity Analysis
 
-## Project Overview
+## Executive Summary
 
-This project combines dynamic web scraping and text mining techniques to analyze laptop listings from an online marketplace.
+This project builds an end-to-end pipeline that scrapes laptop listings from eBay France, cleans and vectorizes the textual content using TF-IDF, and applies cosine similarity to detect near-duplicate or highly overlapping listings. The analysis shows that laptop listings are differentiated almost entirely by standardized technical vocabulary (CPU, RAM, SSD) rather than marketing language, and that a small but meaningful subset of listings are near-duplicates of one another.
 
-The main objectives are:
+## Business Problem
 
-- Extract structured product data using Selenium
-- Clean and preprocess textual information
-- Transform text into numerical representations using TF-IDF
-- Visually explore the most informative terms using a TF-IDF-based Word Cloud
-- Compute cosine similarity between listings
-- Identify highly similar or potentially duplicate products
-- Generate analytical insights from textual similarity patterns
+Online marketplaces host thousands of listings for the same product category, often posted by multiple resellers using near-identical titles and descriptions. This makes it difficult for buyers to compare genuinely distinct offers and for the platform to maintain a clean, non-redundant catalog. This project investigates whether unsupervised text-mining techniques can automatically surface these near-duplicate listings from raw scraped data, without relying on manual review or a labeled dataset.
 
-This project demonstrates an end-to-end workflow from data extraction to analytical interpretation.
+## Business Objectives
 
----
+- Collect real-world, unstructured marketplace data through dynamic web scraping.
+- Convert unstructured product text (titles, descriptions, buyer comments) into a structured, analyzable format.
+- Quantify how similar listings are to one another using an interpretable, unsupervised method (TF-IDF + cosine similarity).
+- Surface listings that are unusually similar, as a proxy for duplicate postings or repeated reseller inventory.
+
+## Dataset
+
+The dataset was collected directly from eBay France (`ebay.fr`) search results for the query **"laptop"**, using Selenium to render JavaScript-based content. For each listing, the following fields were extracted:
+
+| Field | Description |
+|---|---|
+| `idProduits` | Sequential listing identifier |
+| `titles` | Product title |
+| `price` | Listing price (originally in EUR, as text) |
+| `urls` | Direct link to the listing |
+| `description` | Full item description (scraped from the listing page) |
+| `commentaire` | Buyer feedback comments, when available |
+
+**Note on scope:** the scraper collects listings from a single search-results page (no pagination loop), so the dataset represents one page of "laptop" results rather than the full eBay catalog for that query.
+
+## Project Workflow
+
+1. **Dynamic Web Scraping (Selenium):** Launch a Chrome session, search "laptop" on eBay France, and extract title, price, and URL for each listing card on the results page.
+2. **Detail-Page Enrichment:** Visit each listing's URL individually to scrape its full description and any buyer comments.
+3. **Data Export:** Persist the combined results to a CSV file (`resultatsEbay.csv`).
+4. **Data Cleaning:**
+   - Handle missing titles/comments by filling with placeholder values.
+   - Normalize price strings (strip the `EUR` currency label, convert comma decimals to dot decimals, coerce to numeric) and impute remaining missing prices with the median price.
+   - Remove duplicate listings based on exact title matches.
+5. **Text Preprocessing:** Lowercase text, strip digits and punctuation, remove English and French stopwords, and lemmatize the remaining tokens (title and comment fields are processed separately, then merged into a single `all_text` column).
+6. **Vectorization:** Represent listings as a Bag-of-Words matrix, then as a TF-IDF matrix using unigrams and bigrams (`ngram_range=(1,2)`), with document-frequency filtering (`min_df=2`, `max_df=0.8`) and a 3,000-feature cap.
+7. **TF-IDF Word Cloud:** Visualize the most informative terms across all listings, weighted by their aggregated TF-IDF scores rather than raw frequency.
+8. **Similarity Analysis:** Compute pairwise cosine similarity across all TF-IDF vectors, inspect the overall distribution of similarity scores, and flag pairs above a **fixed threshold of 0.90** as likely near-duplicates.
+9. **Visualization of Results:** Plot the distribution of all pairwise similarity scores and a horizontal bar chart of the top 15 most similar listing pairs.
 
 ## Technologies Used
 
-- Python
-- Selenium (Dynamic Web Scraping)
-- Pandas
-- NumPy
-- Scikit-learn
-- Matplotlib
-- WordCloud
+- **Python**
+- **Selenium** + **webdriver-manager** (dynamic web scraping)
+- **Pandas**, **NumPy** (data handling)
+- **NLTK** (stopword removal, lemmatization)
+- **Scikit-learn** (`CountVectorizer`, `TfidfVectorizer`, `cosine_similarity`)
+- **Matplotlib**, **WordCloud** (visualization)
 
----
+## Results
 
-## Data Collection
+- The pairwise similarity distribution shows that **most listing pairs fall between 0.0 and 0.2 similarity**, meaning the majority of scraped listings are textually distinct from one another.
+- A **small cluster of pairs scores above 0.9**, indicating a subset of listings that are near-identical in wording.
+- The TF-IDF word cloud is dominated by two term categories: seller-confidence language (e.g., "great," "good") and hardware specifications (e.g., "Intel," "GB," "RAM").
+- Listings flagged as near-duplicates (similarity > 0.90) share nearly identical hardware specifications, often across different brands — suggesting the model captures functional/spec-based equivalence rather than brand identity.
 
-Laptop listings were scraped dynamically using Selenium due to JavaScript-rendered content.
+## Business Insights
 
-Extracted fields include:
+- Laptop listings on the platform are structurally standardized: buyers and sellers converge on the same technical vocabulary (RAM size, storage capacity, processor model) far more than on differentiated marketing copy.
+- A meaningful minority of listings are near-duplicates of each other, consistent with resellers posting the same or very similar inventory multiple times.
+- Because differentiation is spec-driven rather than brand-driven, listings from different brands with matching specs can appear as substitutes for one another in this analysis.
 
-- Product Title
-- Price
-- Description
-- Product URL
-- Comments (when available)
+## Business Recommendations
 
-The scraping phase focuses on collecting structured product information for downstream text analysis.
-
----
-
-## Data Cleaning & Preparation
-
-The following preprocessing steps were applied:
-
-- Price normalization (removal of currency symbols and conversion to numeric format)
-- Handling missing values
-- Removing duplicate product titles
-- Text normalization (lowercasing and punctuation removal)
-- Merging title and description into a unified text column for analysis
-
-These steps ensure data consistency before applying vectorization techniques.
-
----
-
-## Text Vectorization (TF-IDF)
-
-Text data was transformed into numerical vectors using TF-IDF with:
-
-- Bi-grams (ngram_range=(1,2))
-- Maximum feature limit
-- English stopword removal
-- Minimum document frequency filtering
-
-Using bi-grams improves detection of compound technical phrases such as:
-
-- "16gb ram"
-- "512gb ssd"
-- "intel core i7"
-
-TF-IDF helps identify terms that are not only frequent, but also informative across listings.
-
----
-
-## TF-IDF Word Cloud
-
-To visually interpret the most informative terms, a Word Cloud was generated using TF-IDF scores (not raw word frequency).
-
-This visualization highlights dominant technical attributes across listings, particularly hardware-related specifications such as RAM size, SSD capacity, and processor models.
-
-The Word Cloud serves as a visual validation of the TF-IDF results, confirming that laptop listings are primarily differentiated by technical specifications rather than marketing language.
-
----
-
-## Similarity Analysis
-
-Cosine similarity was computed between all laptop listings based on their TF-IDF vectors.
-
-Instead of using a fixed arbitrary threshold, the 95th percentile of similarity scores was selected to identify statistically significant similarity pairs.
-
-This approach ensures that only unusually similar listings are flagged.
-
----
-
-## Visualization
-
-The project includes the following analytical visualizations:
-
-- TF-IDF-based Word Cloud
-- Distribution of similarity scores (histogram)
-- Top most similar product pairs (horizontal bar chart)
-
-The histogram provides a global overview of similarity patterns across all listings, while the bar chart highlights the strongest similarity relationships.
-
----
-
-## Key Insights
-
-- Laptop listings exhibit strong structural similarity due to standardized hardware terminology.
-- Technical specifications (RAM, SSD, CPU models) dominate textual differentiation.
-- High similarity clusters likely represent:
-  - Duplicate postings
-  - Resellers listing identical inventory
-  - Standardized naming conventions
-
-The analysis demonstrates how text mining techniques can uncover structural convergence within marketplace listings.
-
----
-
-## Limitations
-
-- Website structure may change due to dynamic DOM rendering.
-- Similarity analysis is purely text-based (no image or metadata comparison).
-- No clustering or classification models were applied.
-
----
-
-## Future Improvements
-
-- Add clustering techniques (e.g., KMeans)
-- Integrate topic modeling (LDA)
-- Incorporate price-based anomaly detection
-- Build an interactive dashboard using Streamlit
-
----
+- A marketplace could use this type of similarity scoring as a first-pass, automated flag for potential duplicate or reseller-repeated listings, reducing catalog clutter and improving buyer trust.
+- Sellers aiming to stand out should be encouraged to add more differentiated, non-boilerplate descriptive content, since generic spec-only listings are the hardest to tell apart.
+- Before using a similarity threshold in production, it should be validated against a larger, multi-page sample and compared against a data-driven cutoff (e.g., a percentile of the score distribution) rather than a single fixed value, since the right threshold likely varies with sample size and search category.
 
 ## Author
 
